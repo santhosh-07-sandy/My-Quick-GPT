@@ -257,4 +257,4 @@ For support, please open an issue on GitHub or contact the development team.
 
 ---
 
-**Built with ❤️ by [Your Name]**
+**Built with ❤️ by Santhosh D**
