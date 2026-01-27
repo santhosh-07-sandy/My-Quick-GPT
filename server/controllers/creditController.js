@@ -1,86 +1,248 @@
-import Transaction from "../models/Transaction.js"
-import Stripe from 'stripe'
+import mongoose from 'mongoose';
+import Transaction from "../models/Transaction.js";
+import Stripe from 'stripe';
 
-const plans = [
+// Validate environment variables
+if (!process.env.STRIPE_SECRET_KEY) {
+    console.error('STRIPE_SECRET_KEY is not defined in environment variables');
+    process.exit(1);
+}
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+// Credit plans configuration
+const PLANS = [
     {
         _id: "basic",
         name: "Basic",
         price: 10,
         credits: 100,
-        features: ['100 text generations', '50 image generations', 'Standard support', 'Access to basic models']
+        features: [
+            '100 text generations', 
+            '50 image generations', 
+            'Standard support', 
+            'Access to basic models'
+        ]
     },
     {
         _id: "pro",
         name: "Pro",
         price: 20,
         credits: 500,
-        features: ['500 text generations', '200 image generations', 'Priority support', 'Access to pro models', 'Faster response time']
+        features: [
+            '500 text generations', 
+            '200 image generations', 
+            'Priority support', 
+            'Access to pro models', 
+            'Faster response time'
+        ]
     },
     {
         _id: "premium",
         name: "Premium",
         price: 30,
         credits: 1000,
-        features: ['1000 text generations', '500 image generations', '24/7 VIP support', 'Access to premium models', 'Dedicated account manager']
+        features: [
+            '1000 text generations', 
+            '500 image generations', 
+            '24/7 VIP support', 
+            'Access to premium models', 
+            'Dedicated account manager'
+        ]
     }
-]
+];
 
-// API Controller for getting all plans
+// Helper function to find a plan by ID
+const findPlanById = (planId) => PLANS.find(plan => plan._id === planId);
+
+/**
+ * @desc    Get all available credit plans
+ * @route   GET /api/credit/plans
+ * @access  Public
+ */
 export const getPlans = async (req, res) => {
     try {
-        res.json({success: true, plans})
+        res.status(200).json({ 
+            success: true, 
+            count: PLANS.length,
+            plans: PLANS 
+        });
     } catch (error) {
-        res.json({success: false, message: error.message})
+        console.error('Error in getPlans:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Failed to fetch plans',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
-}
+};
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+/**
+ * @desc    Purchase a credit plan
+ * @route   POST /api/credit/purchase
+ * @access  Private
+ */
+export const purchasePlan = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-// API Controller for purchasing a plan
-export const purchasePlan = async (req, res) =>{
     try {
-        const { planId } = req.body
-        const userId = req.user._id
-        const plan = plans.find(plan => plan._id === planId)
+        const { planId } = req.body;
+        const userId = req.user?._id;
 
-        if(!plan){
-            return res.json({success: false, message: "Invalid plan"})
+        // Input validation
+        if (!planId) {
+            await session.abortTransaction();
+            return res.status(400).json({ 
+                success: false, 
+                message: "Plan ID is required" 
+            });
         }
 
-         // Create new Transaction
-         const transaction = await Transaction.create({
-            userId: userId,
+        if (!userId) {
+            await session.abortTransaction();
+            return res.status(401).json({ 
+                success: false, 
+                message: "User not authenticated" 
+            });
+        }
+
+        const plan = findPlanById(planId);
+        if (!plan) {
+            await session.abortTransaction();
+            return res.status(404).json({ 
+                success: false, 
+                message: "Plan not found" 
+            });
+        }
+
+        // Create transaction record
+        const [transaction] = await Transaction.create([{
+            userId,
             planId: plan._id,
+            planName: plan.name,
             amount: plan.price,
             credits: plan.credits,
+            status: 'pending',
             isPaid: false
-         })
+        }], { session });
 
-         const {origin} = req.headers;
+        if (!transaction) {
+            throw new Error('Failed to create transaction record');
+        }
 
-         const session = await stripe.checkout.sessions.create({
-            line_items: [
-                {
+        const { origin } = req.headers;
+        if (!origin) {
+            throw new Error('Origin header is required for redirect URLs');
+        }
+
+        // Create Stripe checkout session
+        const sessionOptions = {
+            payment_method_types: ['card'],
+            line_items: [{
                 price_data: {
-                    currency: "usd",
-                    unit_amount: plan.price * 100,
+                    currency: 'usd',
                     product_data: {
-                        name: plan.name
-                    }
+                        name: `${plan.name} Plan`,
+                        description: `${plan.credits} credits`,
+                        metadata: {
+                            plan_id: plan._id
+                        }
+                    },
+                    unit_amount: Math.round(plan.price * 100), // Convert to cents
                 },
                 quantity: 1,
-                },
-            ],
+            }],
             mode: 'payment',
-            success_url: `${origin}/loading`,
-            cancel_url: `${origin}`,
-            metadata: {transactionId: transaction._id.toString(), appId: 'quickgpt'},
-            expires_at: Math.floor(Date.now() / 1000) + 30 * 60, // Expires in 30 minutes
-            });
+            success_url: `${origin}/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${origin}/credits?payment=cancelled`,
+            metadata: {
+                transactionId: transaction._id.toString(),
+                appId: 'quickgpt',
+                userId: userId.toString(),
+                planId: plan._id,
+                credits: plan.credits
+            },
+            payment_intent_data: {
+                metadata: {
+                    transactionId: transaction._id.toString(),
+                    userId: userId.toString()
+                }
+            },
+            expires_at: Math.floor(Date.now() / 1000) + 1800, // 30 minutes
+            customer_email: req.user.email,
+            client_reference_id: userId.toString(),
+        };
 
-            res.json({success: true, url: session.url})
+        const stripeSession = await stripe.checkout.sessions.create(sessionOptions);
+
+        // Update transaction with Stripe session ID
+        transaction.stripeSessionId = stripeSession.id;
+        await transaction.save({ session });
+
+        await session.commitTransaction();
+        console.log(`Transaction ${transaction._id} created successfully`);
+
+        res.status(200).json({
+            success: true,
+            url: stripeSession.url,
+            sessionId: stripeSession.id,
+            transactionId: transaction._id
+        });
 
     } catch (error) {
-        res.json({success: false, message: error.message})
+        console.error('Error in purchasePlan:', {
+            error: error.message,
+            stack: error.stack,
+            userId: req.user?._id,
+            planId: req.body?.planId
+        });
+
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
+
+        const statusCode = error.type === 'StripeInvalidRequestError' ? 400 : 500;
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || 'Failed to process payment',
+            error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    } finally {
+        await session.endSession();
     }
-}
+};
+
+/**
+ * @desc    Verify a payment
+ * @route   GET /api/credit/verify/:sessionId
+ * @access  Private
+ */
+export const verifyPayment = async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const session = await stripe.checkout.sessions.retrieve(sessionId, {
+            expand: ['payment_intent']
+        });
+
+        if (!session) {
+            return res.status(404).json({
+                success: false,
+                message: 'Session not found'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            paymentStatus: session.payment_status,
+            session
+        });
+    } catch (error) {
+        console.error('Error verifying payment:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to verify payment',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+};

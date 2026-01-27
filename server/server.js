@@ -12,8 +12,17 @@ const app = express()
 
 await connectDB()
 
-// Stripe Webhooks
-app.post('/api/stripe', express.raw({type: 'application/json'}), stripeWebhooks)
+// Stripe Webhooks - Must be before body parser
+app.post('/api/stripe', 
+  // Handle raw body for webhook verification
+  express.raw({ type: 'application/json' }), 
+  (req, res, next) => {
+    // Store the raw body for webhook verification
+    req.rawBody = req.body.toString('utf8');
+    next();
+  },
+  stripeWebhooks
+)
 
 // Middleware
 app.use(cors())

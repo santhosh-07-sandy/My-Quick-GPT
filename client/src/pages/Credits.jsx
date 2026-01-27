@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { assets } from '../assets/assets'
 import Loading from './Loading'
 import { useAppContext } from '../context/AppContext'
@@ -34,18 +34,103 @@ const Credits = () => {
     setLoading(false)
   }
 
-  const purchasePlan = async (planId) => {
+  const { setUser } = useAppContext();
+  const paymentWindowRef = useRef(null);
+
+  const checkPaymentStatus = useCallback(async () => {
     try {
-      const { data } = await axios.post('/api/credit/purchase', { planId }, { headers: { Authorization: token } })
-      if (data.success) {
-        window.location.href = data.url
+      console.log('Checking payment status...');
+      if (!token) {
+        console.error('No auth token found');
+        toast.error('Authentication error. Please log in again.');
+        return;
+      }
+
+      const userResponse = await axios.get('/api/user/me', {
+        headers: { 
+          'Authorization': token,
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+      
+      console.log('User response:', userResponse.data);
+      
+      if (userResponse.data?.success && userResponse.data.user) {
+        console.log('Updating user credits:', userResponse.data.user.credits);
+        setUser(userResponse.data.user);
+        toast.success(`Payment successful! You now have ${userResponse.data.user.credits} credits.`);
       } else {
-        toast.error(data.message)
+        console.error('Invalid user response:', userResponse.data);
+        toast.error('Failed to update credits. Please refresh the page.');
       }
     } catch (error) {
-      toast.error(error.message)
+      console.error('Error checking payment status:', error);
+      toast.error('Error updating credits. Please refresh the page or contact support.');
     }
-  }
+  }, [setUser, token]);
+
+  const purchasePlan = useCallback(async (planId) => {
+    try {
+      console.log('Initiating purchase for plan:', planId);
+      const { data } = await axios.post(
+        '/api/credit/purchase', 
+        { planId }, 
+        { 
+          headers: { 
+            'Authorization': token,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      console.log('Purchase response:', data);
+
+      if (data?.success && data.url) {
+        console.log('Opening payment URL:', data.url);
+        // Open payment in new tab
+        paymentWindowRef.current = window.open(data.url, '_blank');
+        
+        if (!paymentWindowRef.current) {
+          throw new Error('Popup was blocked. Please allow popups for this site.');
+        }
+        
+        // Check for payment completion every 2 seconds
+        const checkInterval = setInterval(async () => {
+          try {
+            if (paymentWindowRef.current?.closed) {
+              console.log('Payment window closed, checking status...');
+              clearInterval(checkInterval);
+              await checkPaymentStatus();
+            }
+          } catch (error) {
+            console.error('Error in payment check interval:', error);
+            clearInterval(checkInterval);
+            toast.error('Error verifying payment status. Please refresh the page to check your balance.');
+          }
+        }, 2000);
+        
+        // Stop checking after 10 minutes
+        const timeoutId = setTimeout(() => {
+          console.log('Payment check timeout reached');
+          clearInterval(checkInterval);
+        }, 10 * 60 * 1000);
+        
+        // Cleanup on unmount
+        return () => {
+          clearInterval(checkInterval);
+          clearTimeout(timeoutId);
+        };
+      } else {
+        console.error('Invalid purchase response:', data);
+        throw new Error(data?.message || 'Failed to initiate payment');
+      }
+    } catch (error) {
+      console.error('Purchase error:', error);
+      toast.error(error.response?.data?.message || 'An error occurred while processing your payment');
+    }
+  }, [token, checkPaymentStatus]);
 
   useEffect(() => {
     fetchPlans()
