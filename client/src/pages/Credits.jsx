@@ -46,17 +46,17 @@ const Credits = () => {
         return;
       }
 
-      const userResponse = await axios.get('/api/user/me', {
-        headers: { 
+      const userResponse = await axios.get('/api/user/data', {
+        headers: {
           'Authorization': token,
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache',
           'Expires': '0'
         }
       });
-      
+
       console.log('User response:', userResponse.data);
-      
+
       if (userResponse.data?.success && userResponse.data.user) {
         console.log('Updating user credits:', userResponse.data.user.credits);
         setUser(userResponse.data.user);
@@ -75,10 +75,10 @@ const Credits = () => {
     try {
       console.log('Initiating purchase for plan:', planId);
       const { data } = await axios.post(
-        '/api/credit/purchase', 
-        { planId }, 
-        { 
-          headers: { 
+        '/api/credit/purchase',
+        { planId },
+        {
+          headers: {
             'Authorization': token,
             'Content-Type': 'application/json'
           }
@@ -91,11 +91,11 @@ const Credits = () => {
         console.log('Opening payment URL:', data.url);
         // Open payment in new tab
         paymentWindowRef.current = window.open(data.url, '_blank');
-        
+
         if (!paymentWindowRef.current) {
           throw new Error('Popup was blocked. Please allow popups for this site.');
         }
-        
+
         // Check for payment completion every 2 seconds
         const checkInterval = setInterval(async () => {
           try {
@@ -110,13 +110,13 @@ const Credits = () => {
             toast.error('Error verifying payment status. Please refresh the page to check your balance.');
           }
         }, 2000);
-        
+
         // Stop checking after 10 minutes
         const timeoutId = setTimeout(() => {
           console.log('Payment check timeout reached');
           clearInterval(checkInterval);
         }, 10 * 60 * 1000);
-        
+
         // Cleanup on unmount
         return () => {
           clearInterval(checkInterval);
@@ -133,31 +133,68 @@ const Credits = () => {
   }, [token, checkPaymentStatus]);
 
   useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const payment = urlParams.get('payment');
+    const sessionId = urlParams.get('session_id');
+
+    if (payment === 'success' && sessionId && token) {
+      const verifyCheckout = async () => {
+        try {
+          toast.loading('Verifying payment...', { id: 'verify' });
+          const { data } = await axios.post('/api/credit/verify', { sessionId }, {
+            headers: { Authorization: token }
+          });
+          
+          if (data.success) {
+            toast.success(data.message || 'Payment successful!', { id: 'verify' });
+            // Refresh user credits
+            const userResponse = await axios.get('/api/user/data', { headers: { Authorization: token } });
+            if (userResponse.data?.success) {
+                setUser(userResponse.data.user);
+            }
+          } else {
+            toast.error(data.message || 'Payment verification failed', { id: 'verify' });
+          }
+        } catch (error) {
+          toast.error(error.response?.data?.message || 'Verification error', { id: 'verify' });
+        } finally {
+          window.history.replaceState({}, '', '/credits');
+        }
+      };
+      
+      verifyCheckout();
+    } else if (payment === 'cancelled') {
+        toast.error('Payment was cancelled');
+        window.history.replaceState({}, '', '/credits');
+    }
+  }, [token, axios, setUser]);
+
+  useEffect(() => {
     fetchPlans()
   }, [])
 
   if (loading) return <Loading />
 
   return (
-    <div className='flex-1 h-screen overflow-y-auto custom-scrollbar bg-slate-50/50 dark:bg-transparent transition-colors duration-500'>
-      <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24'>
+    <div className='flex-1 lg:h-screen overflow-y-auto custom-scrollbar bg-slate-50/50 dark:bg-transparent transition-colors duration-500 flex flex-col justify-center'>
+      <div className='w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12'>
 
         {/* Header Section */}
-        <div className='text-center mb-16 animate-in fade-in slide-in-from-top-4 duration-700'>
-          <h2 className='text-4xl md:text-5xl font-extrabold mb-4 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent italic'>
+        <div className='text-center mb-10 animate-in fade-in slide-in-from-top-4 duration-700'>
+          <h2 className='text-3xl md:text-4xl lg:text-5xl font-extrabold mb-3 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent italic'>
             Ready for more?
           </h2>
-          <p className='text-gray-500 dark:text-gray-400 max-w-2xl mx-auto text-sm md:text-base'>
+          <p className='text-gray-500 dark:text-gray-400 max-w-2xl mx-auto text-xs md:text-sm lg:text-base'>
             Select your preferred credit bundle. Your selection will be highlighted for a faster checkout experience.
           </p>
-          <div className='mt-8 inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-white dark:bg-white/5 shadow-sm border border-gray-100 dark:border-white/10'>
+          <div className='mt-6 inline-flex items-center gap-2 px-5 py-2 rounded-2xl bg-white dark:bg-white/5 shadow-sm border border-gray-100 dark:border-white/10'>
             <div className='w-2 h-2 rounded-full bg-green-500 animate-pulse'></div>
-            <span className='text-sm font-bold text-gray-700 dark:text-gray-200'>Available: {user?.credits || 0} Credits</span>
+            <span className='text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-200'>Available: {user?.credits || 0} Credits</span>
           </div>
         </div>
 
-        {/* Plans Container */}
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch max-w-5xl mx-auto px-2'>
+        {/* Plans Container - horizontal snap scroll on mobile, grid on md+ */}
+        <div className='flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-8 items-stretch max-w-6xl mx-auto overflow-x-auto md:overflow-visible snap-x snap-mandatory md:snap-none pb-4 md:pb-0 -mx-4 px-4 md:mx-auto md:px-2'>
           {plans.map((plan, index) => {
             const isHovered = hoveredPlanId === plan._id;
             const isSelected = selectedPlanId === plan._id;
@@ -169,12 +206,12 @@ const Credits = () => {
                 onClick={() => setSelectedPlanId(plan._id)}
                 onMouseEnter={() => setHoveredPlanId(plan._id)}
                 onMouseLeave={() => setHoveredPlanId(null)}
-                className={`group relative flex flex-col p-8 rounded-[2.5rem] transition-all duration-700 animate-in fade-in slide-in-from-bottom-8 duration-700 cursor-pointer
+                className={`group relative flex flex-col p-6 lg:p-7 rounded-[2.5rem] transition-all duration-700 animate-in fade-in slide-in-from-bottom-8 duration-700 cursor-pointer snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-auto
                   ${isHovered || isSelected
-                    ? 'scale-105 -translate-y-2'
+                    ? 'scale-[1.03] -translate-y-2'
                     : 'scale-100 translate-y-0'}
                   ${isSelected
-                    ? 'bg-white dark:bg-[#1E0B2B]/90 ring-[3px] ring-purple-600 shadow-2xl shadow-purple-600/30'
+                    ? 'bg-white dark:bg-[#1E0B2B]/90 ring-[3.5px] ring-purple-600 shadow-2xl shadow-purple-600/30'
                     : 'bg-white/80 dark:bg-white/5 border border-gray-100 dark:border-white/10 shadow-xl'
                   } backdrop-blur-3xl overflow-hidden`}
                 style={{ animationDelay: `${index * 150}ms` }}
@@ -195,34 +232,34 @@ const Credits = () => {
                   </div>
                 )}
 
-                <div className='relative flex-1 mt-6'>
-                  <div className='flex items-center gap-3 mb-8'>
-                    <div className={`p-2.5 rounded-2xl transition-all duration-500 ${isSelected ? 'bg-purple-600 text-white translate-x-1' : 'bg-gray-100 dark:bg-white/10 text-gray-500'}`}>
-                      <img src={assets.diamond_icon} className={`w-6 h-6 ${!isSelected && 'dark:invert opacity-60'}`} alt="D" />
+                <div className='relative flex-1 mt-4'>
+                  <div className='flex items-center gap-3 mb-6'>
+                    <div className={`p-2 rounded-xl transition-all duration-500 ${isSelected ? 'bg-purple-600 text-white translate-x-1' : 'bg-gray-100 dark:bg-white/10 text-gray-500'}`}>
+                      <img src={assets.diamond_icon} className={`w-5 h-5 ${!isSelected && 'dark:invert opacity-60'}`} alt="D" />
                     </div>
-                    <h3 className={`text-xl font-black transition-colors ${isSelected ? 'text-purple-600 dark:text-purple-400' : 'dark:text-white'}`}>{plan.name}</h3>
+                    <h3 className={`text-lg font-black transition-colors ${isSelected ? 'text-purple-600 dark:text-purple-400' : 'dark:text-white'}`}>{plan.name}</h3>
                   </div>
 
-                  <div className='mb-10'>
+                  <div className='mb-6 lg:mb-8'>
                     <div className={`flex items-baseline gap-1.5 transition-transform duration-500 ${isSelected ? 'scale-110 origin-left' : ''}`}>
-                      <span className={`text-5xl font-black transition-colors ${isSelected ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>${plan.price}</span>
-                      <span className='text-gray-400 dark:text-gray-500 font-bold uppercase text-[10px] tracking-widest'>USD</span>
+                      <span className={`text-4xl lg:text-5xl font-black transition-colors ${isSelected ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>${plan.price}</span>
+                      <span className='text-gray-400 dark:text-gray-500 font-bold uppercase text-[9px] tracking-widest'>USD</span>
                     </div>
-                    <div className='flex items-center gap-2 mt-4'>
-                      <div className={`h-1.5 rounded-full transition-all duration-1000 ease-out ${isSelected ? 'bg-gradient-to-r from-purple-600 to-blue-500 w-full' : 'bg-gray-200 dark:bg-white/10 w-12'}`}></div>
+                    <div className='flex items-center gap-2 mt-3'>
+                      <div className={`h-1 rounded-full transition-all duration-1000 ease-out ${isSelected ? 'bg-gradient-to-r from-purple-600 to-blue-500 w-full' : 'bg-gray-200 dark:bg-white/10 w-12'}`}></div>
                     </div>
-                    <p className={`text-[11px] font-black mt-4 transition-colors tracking-widest uppercase ${isSelected ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400'}`}>
+                    <p className={`text-[10px] font-black mt-3 transition-colors tracking-widest uppercase ${isSelected ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400'}`}>
                       {plan.credits.toLocaleString()} PACK CREDITS
                     </p>
                   </div>
 
-                  <ul className='space-y-4 mb-10'>
+                  <ul className='space-y-3 mb-8 lg:mb-10'>
                     {plan.features.map((feature, featureIdx) => (
                       <li key={featureIdx} className='flex items-start gap-3 group/item'>
-                        <div className={`mt-0.5 p-1 rounded-lg transition-colors ${isSelected ? 'bg-green-500/10 text-green-500' : 'bg-gray-100 dark:bg-white/5 text-gray-400'}`}>
-                          <svg className='w-3.5 h-3.5' fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7"></path></svg>
+                        <div className={`mt-0.5 p-0.5 rounded-lg transition-colors ${isSelected ? 'bg-green-500/10 text-green-500' : 'bg-gray-100 dark:bg-white/5 text-gray-400'}`}>
+                          <svg className='w-3 h-3' fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7"></path></svg>
                         </div>
-                        <span className={`text-[13px] font-medium leading-relaxed transition-colors ${isSelected ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>{feature}</span>
+                        <span className={`text-[12px] lg:text-[13px] font-medium leading-relaxed transition-colors ${isSelected ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>{feature}</span>
                       </li>
                     ))}
                   </ul>
@@ -245,7 +282,7 @@ const Credits = () => {
         </div>
 
         {/* Footer Info */}
-        <p className='text-center mt-12 text-xs text-gray-400 dark:text-gray-600 max-w-md mx-auto'>
+        <p className='text-center mt-8 text-[10px] lg:text-xs text-gray-400 dark:text-gray-600 max-w-md mx-auto'>
           All transactions are secured and encrypted. Credits are added instantly to your account upon successful payment.
         </p>
       </div>

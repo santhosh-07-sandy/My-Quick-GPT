@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import Transaction from "../models/Transaction.js";
+import User from "../models/User.js";
 import Stripe from 'stripe';
 
 // Validate environment variables
@@ -18,9 +19,9 @@ const PLANS = [
         price: 10,
         credits: 100,
         features: [
-            '100 text generations', 
-            '50 image generations', 
-            'Standard support', 
+            '100 text generations',
+            '50 image generations',
+            'Standard support',
             'Access to basic models'
         ]
     },
@@ -30,10 +31,10 @@ const PLANS = [
         price: 20,
         credits: 500,
         features: [
-            '500 text generations', 
-            '200 image generations', 
-            'Priority support', 
-            'Access to pro models', 
+            '500 text generations',
+            '200 image generations',
+            'Priority support',
+            'Access to pro models',
             'Faster response time'
         ]
     },
@@ -43,10 +44,10 @@ const PLANS = [
         price: 30,
         credits: 1000,
         features: [
-            '1000 text generations', 
-            '500 image generations', 
-            '24/7 VIP support', 
-            'Access to premium models', 
+            '1000 text generations',
+            '500 image generations',
+            '24/7 VIP support',
+            'Access to premium models',
             'Dedicated account manager'
         ]
     }
@@ -62,15 +63,15 @@ const findPlanById = (planId) => PLANS.find(plan => plan._id === planId);
  */
 export const getPlans = async (req, res) => {
     try {
-        res.status(200).json({ 
-            success: true, 
+        res.status(200).json({
+            success: true,
             count: PLANS.length,
-            plans: PLANS 
+            plans: PLANS
         });
     } catch (error) {
         console.error('Error in getPlans:', error);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: 'Failed to fetch plans',
             error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
@@ -93,26 +94,26 @@ export const purchasePlan = async (req, res) => {
         // Input validation
         if (!planId) {
             await session.abortTransaction();
-            return res.status(400).json({ 
-                success: false, 
-                message: "Plan ID is required" 
+            return res.status(400).json({
+                success: false,
+                message: "Plan ID is required"
             });
         }
 
         if (!userId) {
             await session.abortTransaction();
-            return res.status(401).json({ 
-                success: false, 
-                message: "User not authenticated" 
+            return res.status(401).json({
+                success: false,
+                message: "User not authenticated"
             });
         }
 
         const plan = findPlanById(planId);
         if (!plan) {
             await session.abortTransaction();
-            return res.status(404).json({ 
-                success: false, 
-                message: "Plan not found" 
+            return res.status(404).json({
+                success: false,
+                message: "Plan not found"
             });
         }
 
@@ -154,7 +155,7 @@ export const purchasePlan = async (req, res) => {
                 quantity: 1,
             }],
             mode: 'payment',
-            success_url: `${origin}/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+            success_url: `${origin}/credits?payment=success&session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${origin}/credits?payment=cancelled`,
             metadata: {
                 transactionId: transaction._id.toString(),
@@ -215,12 +216,12 @@ export const purchasePlan = async (req, res) => {
 
 /**
  * @desc    Verify a payment
- * @route   GET /api/credit/verify/:sessionId
+ * @route   POST /api/credit/verify
  * @access  Private
  */
 export const verifyPayment = async (req, res) => {
     try {
-        const { sessionId } = req.params;
+        const { sessionId } = req.body;
         const session = await stripe.checkout.sessions.retrieve(sessionId, {
             expand: ['payment_intent']
         });
@@ -232,10 +233,36 @@ export const verifyPayment = async (req, res) => {
             });
         }
 
-        res.status(200).json({
-            success: true,
-            paymentStatus: session.payment_status,
-            session
+        if (session.payment_status === 'paid') {
+            const transactionId = session.metadata?.transactionId || session.payment_intent?.metadata?.transactionId;
+            const transaction = await Transaction.findById(transactionId);
+            
+            if (transaction && !transaction.isPaid) {
+                // Manually fulfill the transaction if the webhook didn't catch it
+                transaction.isPaid = true;
+                transaction.paymentId = session.payment_intent?.id || session.payment_intent;
+                transaction.completedAt = new Date();
+                await transaction.save();
+
+                await User.findByIdAndUpdate(transaction.userId, { $inc: { credits: transaction.credits } });
+                
+                return res.json({ 
+                    success: true, 
+                    message: 'Payment verified and credits updated successfully',
+                    paymentStatus: session.payment_status
+                });
+            }
+            return res.json({ 
+                success: true, 
+                message: 'Payment verified successfully (already processed)',
+                paymentStatus: session.payment_status
+            });
+        }
+
+        res.json({
+            success: false,
+            message: 'Payment not completed',
+            paymentStatus: session.payment_status
         });
     } catch (error) {
         console.error('Error verifying payment:', error);

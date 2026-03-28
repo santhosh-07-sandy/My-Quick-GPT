@@ -13,8 +13,8 @@ const Message = ({ message }) => {
   return (
     <div className='w-full'>
       {message.role === "user" ? (
-        <div className='flex items-start justify-end my-4 gap-2'>
-          <div className='flex flex-col gap-1 p-2 px-4 bg-slate-50 dark:bg-[#57317C]/30 border border-[#80609F]/30 rounded-md max-w-2xl'>
+        <div className='flex items-start justify-end my-4 gap-2 max-w-full'>
+          <div className='flex flex-col gap-1 p-2 px-3 sm:px-4 bg-slate-50 dark:bg-[#57317C]/30 border border-[#80609F]/30 rounded-md max-w-[85vw] sm:max-w-2xl min-w-0'>
             <p className='text-sm dark:text-primary'>{message.content}</p>
             <span className='text-[10px] text-gray-400 dark:text-[#B1A6C0] text-right'>
               {moment(message.timestamp).format('MMM D, YYYY · hh:mm A')}</span>
@@ -24,9 +24,9 @@ const Message = ({ message }) => {
       )
         :
         (
-          <div className='inline-flex flex-col gap-1 p-2 px-4 max-w-2xl bg-primary/20 dark:bg-[#57317C]/30 border border-[#80609F]/30 rounded-md my-4'>
+          <div className='inline-flex flex-col gap-1 p-2 px-3 sm:px-4 max-w-[85vw] sm:max-w-2xl bg-primary/20 dark:bg-[#57317C]/30 border border-[#80609F]/30 rounded-md my-4 min-w-0'>
             {message.isImage ? (
-              <img src={message.content} alt="" className='w-full max-w-md mt-2 rounded-md' />
+              <img src={message.content} alt="" className='w-full max-w-full sm:max-w-md mt-2 rounded-md' />
             ) :
               (
                 <div className='text-sm dark:text-primary reset-tw'>

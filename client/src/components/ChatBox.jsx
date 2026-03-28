@@ -18,6 +18,11 @@ const ChatBox = () => {
   const [isPublished, setIsPublished] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
 
+  // Reset isPublished whenever switching away from image mode
+  useEffect(() => {
+    if (mode !== 'image') setIsPublished(false)
+  }, [mode])
+
   const onSubmit = async (e) => {
     try {
       e.preventDefault()
@@ -66,7 +71,7 @@ const ChatBox = () => {
   }, [messages])
 
   return (
-    <div className='flex-1 flex flex-col justify-between m-5 md:m-10 xl:mx-30 max-md:mt-14 2xl:pr-40'>
+    <div className='flex-1 flex flex-col justify-between m-3 sm:m-5 md:m-10 xl:mx-30 max-md:mt-14 2xl:pr-40'>
 
       {/* Chat Messages */}
       <div ref={containerRef} className='flex-1 mb-5 overflow-y-scroll'>
@@ -90,9 +95,14 @@ const ChatBox = () => {
       </div>
 
       {mode === 'image' && (
-        <label className='inline-flex items-center gap-2 mb-3 text-sm mx-auto'>
-          <p className='text-xs'>Publish Generated Image to Community</p>
-          <input type="checkbox" className='cursor-pointer' checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} />
+        <label className='inline-flex items-center gap-2.5 mb-3 mx-auto cursor-pointer py-2 px-4 rounded-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:border-purple-400 dark:hover:border-purple-500 transition-all'>
+          <input
+            type="checkbox"
+            className='cursor-pointer w-4 h-4 accent-purple-600'
+            checked={isPublished}
+            onChange={(e) => setIsPublished(e.target.checked)}
+          />
+          <p className='text-xs font-semibold text-gray-600 dark:text-gray-300 select-none'>Publish to Community</p>
         </label>
       )}
 
@@ -152,7 +162,7 @@ const ChatBox = () => {
             {showDropdown && <div className='fixed inset-0 z-10' onClick={() => setShowDropdown(false)}></div>}
           </div>
 
-          <input onChange={(e) => setPrompt(e.target.value)} value={prompt} type="text" placeholder={window.innerWidth < 640 ? "Type..." : "Type your prompt here..."} className='flex-1 w-full text-sm outline-none bg-transparent placeholder-gray-500 dark:placeholder-gray-400 text-gray-800 dark:text-white' required />
+          <input onChange={(e) => setPrompt(e.target.value)} value={prompt} type="text" placeholder='Type your prompt...' className='flex-1 w-full text-sm outline-none bg-transparent placeholder-gray-500 dark:placeholder-gray-400 text-gray-800 dark:text-white' required />
 
           <button
             disabled={loading}

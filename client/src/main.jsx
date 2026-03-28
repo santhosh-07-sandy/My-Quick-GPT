@@ -12,3 +12,14 @@ createRoot(document.getElementById('root')).render(
     </AppContextProvider>
   </BrowserRouter>,
 )
+
+// Cleanup any old/broken service workers that might cause network issues
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    for (const registration of registrations) {
+      registration.unregister();
+      console.log('Orphaned Service Worker unregistered');
+    }
+  });
+}
+

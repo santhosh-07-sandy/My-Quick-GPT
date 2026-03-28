@@ -161,14 +161,14 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                 <div className='mt-auto pt-6 border-t border-gray-100 dark:border-white/10 space-y-3 bg-white dark:bg-[#110816] sticky bottom-0'>
 
                     {/* Compact Actions */}
-                    <div className='flex gap-2.5'>
-                        <div onClick={() => { navigate('/community'); setIsMenuOpen(false) }} className='flex-1 flex items-center justify-center gap-2 p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-transparent hover:border-purple-500/20 cursor-pointer hover:bg-white dark:hover:bg-gray-800 transition-all group'>
-                            <img src={assets.gallery_icon} className='w-4 not-dark:invert opacity-60 group-hover:opacity-100' alt="G" />
-                            <span className='text-[11px] font-bold text-gray-500 dark:text-gray-400'>Community</span>
+                    <div className='flex gap-2'>
+                        <div onClick={() => { navigate('/community'); setIsMenuOpen(false) }} className='flex-1 flex items-center justify-center gap-1.5 p-2 sm:p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-transparent hover:border-purple-500/20 cursor-pointer hover:bg-white dark:hover:bg-gray-800 transition-all group'>
+                            <img src={assets.gallery_icon} className='w-3.5 sm:w-4 not-dark:invert opacity-60 group-hover:opacity-100' alt="G" />
+                            <span className='text-[10px] sm:text-[11px] font-bold text-gray-500 dark:text-gray-400'>Community</span>
                         </div>
-                        <div onClick={() => { navigate('/credits'); setIsMenuOpen(false) }} className='flex-1 flex items-center justify-center gap-2 p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-transparent hover:border-purple-500/20 cursor-pointer hover:bg-white dark:hover:bg-gray-800 transition-all group'>
-                            <img src={assets.diamond_icon} className='w-4 dark:invert opacity-60 group-hover:opacity-100' alt="C" />
-                            <span className='text-[11px] font-bold text-purple-600/70 dark:text-purple-400'>{user?.credits || 0}</span>
+                        <div onClick={() => { navigate('/credits'); setIsMenuOpen(false) }} className='flex-1 flex items-center justify-center gap-1.5 p-2 sm:p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-transparent hover:border-purple-500/20 cursor-pointer hover:bg-white dark:hover:bg-gray-800 transition-all group'>
+                            <img src={assets.diamond_icon} className='w-3.5 sm:w-4 dark:invert opacity-60 group-hover:opacity-100' alt="C" />
+                            <span className='text-[10px] sm:text-[11px] font-bold text-purple-600/70 dark:text-purple-400 tabular-nums'>{user?.credits || 0} cr</span>
                         </div>
                     </div>
 

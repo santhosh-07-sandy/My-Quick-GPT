@@ -9,7 +9,7 @@ axios.defaults.baseURL = import.meta.env.VITE_SERVER_URL;
 
 const AppContext = createContext()
 
-export const AppContextProvider = ({ children })=>{
+export const AppContextProvider = ({ children }) => {
 
     const navigate = useNavigate()
     const [user, setUser] = useState(null);
@@ -21,25 +21,25 @@ export const AppContextProvider = ({ children })=>{
 
     const fetchUser = async () => {
         try {
-           const { data } = await axios.get('/api/user/data', {headers: {Authorization: token}})
-           if(data.success){
-            setUser(data.user)
-           }else{
-            toast.error(data.message)
-           }
+            const { data } = await axios.get('/api/user/data', { headers: { Authorization: token } })
+            if (data.success) {
+                setUser(data.user)
+            } else {
+                toast.error(data.message)
+            }
         } catch (error) {
             toast.error(error.message)
-        }finally{
+        } finally {
             setLoadingUser(false)
         }
     }
 
     const createNewChat = async () => {
         try {
-            if(!user) return toast('Login to create a new chat')
+            if (!user) return toast('Login to create a new chat')
             navigate('/')
-             await axios.get('/api/chat/create', {headers: {Authorization: token}})
-             await fetchUsersChats()
+            await axios.get('/api/chat/create', { headers: { Authorization: token } })
+            await fetchUsersChats()
         } catch (error) {
             toast.error(error.message)
         }
@@ -47,54 +47,54 @@ export const AppContextProvider = ({ children })=>{
 
 
     const fetchUsersChats = async () => {
-       try {
-        const {data} = await axios.get('/api/chat/get', { headers: { Authorization: token}})
-        if(data.success){
-            setChats(data.chats)
-            // If the user has no chats, create one
-            if(data.chats.length === 0){
-                await createNewChat();
-                return fetchUsersChats()
-            }else{
-                setSelectedChat(data.chats[0])
+        try {
+            const { data } = await axios.get('/api/chat/get', { headers: { Authorization: token } })
+            if (data.success) {
+                setChats(data.chats)
+                // If the user has no chats, create one
+                if (data.chats.length === 0) {
+                    await createNewChat();
+                    return fetchUsersChats()
+                } else {
+                    setSelectedChat(data.chats[0])
+                }
+            } else {
+                toast.error(data.message)
             }
-        }else{
-            toast.error(data.message)
-        }
-       } catch (error) {
+        } catch (error) {
             toast.error(error.message)
-       }
+        }
     }
 
-    useEffect(()=>{
-        if(theme === 'dark'){
-           document.documentElement.classList.add('dark');
-        }else{
+    useEffect(() => {
+        if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
             document.documentElement.classList.remove('dark');
         }
         localStorage.setItem('theme', theme)
-    },[theme])
+    }, [theme])
 
 
-    useEffect(()=>{
-        if(user){
+    useEffect(() => {
+        if (user) {
             fetchUsersChats()
         }
-        else{
+        else {
             setChats([])
             setSelectedChat(null)
         }
-    },[user])
+    }, [user])
 
-    useEffect(()=>{
-        if(token){
+    useEffect(() => {
+        if (token) {
             fetchUser()
-        }else{
+        } else {
             setUser(null)
             setLoadingUser(false)
         }
-        
-    },[token])
+
+    }, [token])
 
     const value = {
         navigate, user, setUser, fetchUser, chats, setChats, selectedChat, setSelectedChat, theme, setTheme, createNewChat, loadingUser, fetchUsersChats, token, setToken, axios
@@ -107,4 +107,4 @@ export const AppContextProvider = ({ children })=>{
     )
 }
 
-export const useAppContext = ()=> useContext(AppContext)
+export const useAppContext = () => useContext(AppContext)

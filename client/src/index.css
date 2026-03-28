@@ -6,6 +6,12 @@
 
 * {
   font-family: "Outfit", sans-serif;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  overscroll-behavior: none;
 }
 
 @theme {

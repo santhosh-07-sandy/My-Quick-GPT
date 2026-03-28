@@ -38,7 +38,7 @@ const Login = () => {
             {/* Subtle Grid Pattern */}
             <div className="absolute inset-0 bg-[radial-gradient(#ffffff05_1px,transparent_1px)] [background-size:32px_32px] opacity-40"></div>
 
-            <div className='relative z-10 w-full max-w-[420px] px-4 animate-in fade-in zoom-in-95 duration-1000'>
+            <div className='relative z-10 w-full max-w-[420px] px-3 sm:px-4 animate-in fade-in zoom-in-95 duration-1000'>
 
                 {/* Branding / Logo */}
                 <div className='flex flex-col items-center mb-8 drop-shadow-2xl'>
@@ -52,7 +52,7 @@ const Login = () => {
 
                 <form
                     onSubmit={handleSubmit}
-                    className="flex flex-col gap-5 p-7 sm:p-10 rounded-[2.5rem] bg-white/[0.03] border border-white/10 backdrop-blur-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)]"
+                    className="flex flex-col gap-4 sm:gap-5 p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] bg-white/[0.03] border border-white/10 backdrop-blur-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)]"
                 >
                     <div className='text-center mb-2'>
                         <h2 className='text-2xl font-black text-white mb-1.5'>
